@@ -14,7 +14,8 @@
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+    "noEmit": true
   },
   "include": ["src"]
 }
