@@ -1,5 +1,10 @@
 import { clearToken, getToken } from "./auth";
-const BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+// In dev (vite serve) we go through the local proxy in vite.config.ts.
+// In production we hit the deployed backend directly. Override with
+// VITE_API_BASE_URL only if you need to point at a different backend.
+const PROD_DEFAULT = "https://openai-proxy.dsmhs.kr";
+const ENV_OVERRIDE = import.meta.env.VITE_API_BASE_URL;
+const BASE = (ENV_OVERRIDE ?? (import.meta.env.DEV ? "" : PROD_DEFAULT)).replace(/\/$/, "");
 export class ApiError extends Error {
     status;
     constructor(message, status) {
