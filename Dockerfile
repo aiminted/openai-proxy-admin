@@ -1,11 +1,18 @@
+# syntax=docker/dockerfile:1.4
 FROM node:22-alpine AS builder
 WORKDIR /app
+
 COPY package*.json ./
 RUN npm ci
+
 COPY . .
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-RUN npm run build
+
+# xquare CI mounts Vault KV at /run/secrets/vault_env (KEY=VALUE per line).
+# Sourcing them here lets vite bake VITE_* env vars into the bundle at build
+# time without ever leaving them in the image history.
+RUN --mount=type=secret,id=vault_env \
+    if [ -f /run/secrets/vault_env ]; then set -a; . /run/secrets/vault_env; set +a; fi && \
+    npm run build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

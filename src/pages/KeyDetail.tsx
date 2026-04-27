@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { api, Key, RecentRow } from "../lib/api"
 import { formatDollar, formatInt, formatTime, relativeTime } from "../lib/format"
+import { useToast } from "../components/Toast"
 
 export function KeyDetail() {
   const { id } = useParams()
@@ -92,6 +93,7 @@ export function KeyDetail() {
 }
 
 function EditForm({ initial, onSaved }: { initial: Key; onSaved: () => Promise<void> }) {
+  const toast = useToast()
   const [owner, setOwner] = useState(initial.owner)
   const [note, setNote] = useState(initial.note)
   const [expiresAt, setExpiresAt] = useState(
@@ -99,13 +101,11 @@ function EditForm({ initial, onSaved }: { initial: Key; onSaved: () => Promise<v
   const [rpm, setRpm] = useState(initial.rpm_limit?.toString() ?? "")
   const [tokens, setTokens] = useState(initial.token_quota?.toString() ?? "")
   const [dollars, setDollars] = useState(initial.dollar_quota?.toString() ?? "")
-  const [status, setStatus] = useState<{ tone: "ok" | "err"; msg: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
-    setStatus(null)
     try {
       await api.patch(`/admin/api/keys/${initial.id}`, {
         owner: owner.trim(),
@@ -115,10 +115,10 @@ function EditForm({ initial, onSaved }: { initial: Key; onSaved: () => Promise<v
         token_quota: tokens ? parseInt(tokens, 10) : null,
         dollar_quota: dollars ? parseFloat(dollars) : null,
       })
-      setStatus({ tone: "ok", msg: "저장됨" })
+      toast("저장됨", "ok")
       await onSaved()
     } catch (err: any) {
-      setStatus({ tone: "err", msg: err?.message || "저장 실패" })
+      toast(err?.message || "저장 실패", "err")
     } finally {
       setSaving(false)
     }
@@ -158,7 +158,6 @@ function EditForm({ initial, onSaved }: { initial: Key; onSaved: () => Promise<v
           className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
           {saving ? "..." : "변경 사항 저장"}
         </button>
-        {status && <span className={`text-xs ${status.tone === "ok" ? "text-emerald-600" : "text-red-500"}`}>{status.msg}</span>}
       </div>
     </form>
   )

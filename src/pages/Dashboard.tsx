@@ -2,6 +2,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { api, IssuedKey, IssueParams, Key, Stats } from "../lib/api"
 import { formatDollar, formatInt, formatTime, relativeTime } from "../lib/format"
+import { ClientSetup } from "../components/ClientSetup"
+import { IssuedKeyPanel } from "../components/IssuedKeyPanel"
+import { useToast } from "../components/Toast"
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -32,6 +35,7 @@ export function Dashboard() {
   const [issued, setIssued] = useState<IssuedKey | null>(null)
   const [search, setSearch] = useState("")
   const [hideInactive, setHideInactive] = useState(true)
+  const toast = useToast()
 
   async function reload() {
     const [s, k] = await Promise.all([
@@ -54,6 +58,8 @@ export function Dashboard() {
 
   return (
     <>
+      <ClientSetup />
+
       {stats && (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="total keys" value={formatInt(stats.total_keys)} />
@@ -63,17 +69,9 @@ export function Dashboard() {
         </div>
       )}
 
-      {issued && (
-        <Card title="새 키 발급됨" action={<button onClick={() => setIssued(null)} className="text-xs text-[var(--color-muted)] underline">닫기</button>}>
-          <p className="mb-2 text-xs text-[var(--color-muted)]">이 값은 한 번만 표시됩니다. 안전한 곳에 옮겨주세요.</p>
-          <div className="flex items-center gap-2 rounded-md bg-black/5 px-3 py-2 dark:bg-white/5">
-            <code className="flex-1 break-all">{issued.key}</code>
-            <CopyButton value={issued.key} />
-          </div>
-        </Card>
-      )}
+      {issued && <IssuedKeyPanel apiKey={issued.key} onClose={() => setIssued(null)} />}
 
-      <IssueForm onIssued={(k) => { setIssued(k); reload() }} />
+      <IssueForm onIssued={(k) => { setIssued(k); reload(); toast(`키 발급됨 (${k.owner})`, "ok") }} />
 
       <Card
         title={`키 목록 (${keys.length})`}
@@ -140,34 +138,19 @@ function Td({ children, align, className, title }: { children?: React.ReactNode;
   return <td title={title} className={`px-2 py-2 align-middle ${align === "right" ? "text-right tabular-nums" : ""} ${className ?? ""}`}>{children}</td>
 }
 
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(value).then(() => {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 1200)
-        })
-      }}
-      className={`rounded-md border px-2 py-1 text-xs ${copied ? "border-emerald-500 text-emerald-600" : "border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"}`}
-    >
-      {copied ? "copied" : "copy"}
-    </button>
-  )
-}
-
 function RowActions({ k, reload }: { k: Key; reload: () => Promise<void> }) {
+  const toast = useToast()
   async function toggle() {
     const msg = k.active ? "이 키를 비활성화할까요? 즉시 차단됩니다." : "이 키를 다시 활성화할까요?"
     if (!confirm(msg)) return
     await api.post(`/admin/api/keys/${k.id}/active`, { active: !k.active })
+    toast(k.active ? "키 비활성화됨" : "키 재활성화됨", "ok")
     await reload()
   }
   async function remove() {
     if (!confirm("이 키와 모든 사용 기록을 영구 삭제합니다. 복구 불가.")) return
     await api.delete(`/admin/api/keys/${k.id}`)
+    toast("키 삭제됨", "ok")
     await reload()
   }
   return (
@@ -179,6 +162,7 @@ function RowActions({ k, reload }: { k: Key; reload: () => Promise<void> }) {
 }
 
 function IssueForm({ onIssued }: { onIssued: (k: IssuedKey) => void }) {
+  const toast = useToast()
   const [owner, setOwner] = useState("")
   const [note, setNote] = useState("")
   const [expiresAt, setExpiresAt] = useState("")
@@ -186,7 +170,6 @@ function IssueForm({ onIssued }: { onIssued: (k: IssuedKey) => void }) {
   const [tokens, setTokens] = useState("")
   const [dollars, setDollars] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState("")
 
   function preset(days: number | null) {
     if (days == null) { setExpiresAt(""); return }
@@ -197,9 +180,8 @@ function IssueForm({ onIssued }: { onIssued: (k: IssuedKey) => void }) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!owner.trim()) { setError("owner is required"); return }
+    if (!owner.trim()) { toast("owner is required", "err"); return }
     setSubmitting(true)
-    setError("")
     try {
       const params: IssueParams = {
         owner: owner.trim(),
@@ -213,7 +195,7 @@ function IssueForm({ onIssued }: { onIssued: (k: IssuedKey) => void }) {
       onIssued(k)
       setOwner(""); setNote(""); setExpiresAt(""); setRpm(""); setTokens(""); setDollars("")
     } catch (err: any) {
-      setError(err?.message || "발급 실패")
+      toast(err?.message || "발급 실패", "err")
     } finally {
       setSubmitting(false)
     }
@@ -267,7 +249,6 @@ function IssueForm({ onIssued }: { onIssued: (k: IssuedKey) => void }) {
             className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             {submitting ? "..." : "발급"}
           </button>
-          {error && <span className="text-xs text-red-500">{error}</span>}
         </div>
       </form>
     </Card>
