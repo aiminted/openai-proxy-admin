@@ -129,9 +129,19 @@ export function Dashboard() {
             <button
               type="button"
               onClick={() => setIssueOpen((v) => !v)}
-              className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white"
+              aria-expanded={issueOpen}
+              className={
+                issueOpen
+                  ? "rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1.5 text-xs font-medium text-[var(--color-muted)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-fg)]"
+                  : "inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[var(--color-accent)]/30 ring-1 ring-[var(--color-accent)]/40 transition hover:brightness-110 hover:shadow-md hover:shadow-[var(--color-accent)]/40 active:scale-[0.98]"
+              }
             >
-              {issueOpen ? "− 닫기" : "+ 새 키 발급"}
+              {issueOpen
+                ? <>− 닫기</>
+                : <>
+                    <span className="grid h-4 w-4 place-items-center rounded-full bg-white/20 text-[12px] leading-none">+</span>
+                    <span>새 키 발급</span>
+                  </>}
             </button>
           </div>
         </div>
