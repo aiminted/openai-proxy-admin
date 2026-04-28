@@ -7,9 +7,9 @@ export function RecentFeed({ events }: { events: RecentEvent[] }) {
     return <p className="text-sm text-[var(--color-muted)]">아직 활동이 없습니다.</p>
   }
   return (
-    <ul className="-my-1 divide-y divide-[var(--color-border)]">
+    <ul className="-my-0.5 divide-y divide-[var(--color-border)]">
       {events.map((e, i) => (
-        <li key={i} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-1.5 text-[12px]">
+        <li key={i} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-1 text-[12px]">
           <span className="text-[var(--color-muted)] tabular-nums" title={e.created_at}>
             {relativeTime(e.created_at)}
           </span>
