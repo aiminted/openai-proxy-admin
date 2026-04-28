@@ -98,12 +98,12 @@ export function Dashboard() {
 
       <section className="mb-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <Card title="모델별 사용량" subtitle="최근 30일">
-          <div className="max-h-72 overflow-y-auto pr-1">
+          <div className="h-72 overflow-y-auto pr-1">
             <TopModels rows={models.slice(0, 8)} />
           </div>
         </Card>
         <Card title="최근 활동" subtitle="전 키 통합">
-          <div className="max-h-72 overflow-y-auto pr-1">
+          <div className="h-72 overflow-y-auto pr-1">
             <RecentFeed events={recent} />
           </div>
         </Card>
