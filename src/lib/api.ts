@@ -104,3 +104,31 @@ export type IssueParams = {
   token_quota?: number | null
   dollar_quota?: number | null
 }
+
+export type UsageDay = {
+  day: string
+  tokens: number
+  cost_usd: number
+  requests: number
+}
+
+export type ModelUsage = {
+  model: string
+  tokens: number
+  cost_usd: number
+  requests: number
+}
+
+export type RecentEvent = {
+  created_at: string
+  key_id: string
+  key_prefix: string
+  key_owner: string
+  endpoint: string
+  model: string
+  input_tokens: number
+  output_tokens: number
+  cost_usd: number
+  status: number
+  duration_ms: number
+}

@@ -1,9 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { api, IssuedKey, IssueParams, Key, Stats } from "../lib/api"
+import { api, IssuedKey, IssueParams, Key, ModelUsage, RecentEvent, Stats, UsageDay } from "../lib/api"
 import { formatDollar, formatInt, formatTime, relativeTime } from "../lib/format"
 import { ClientSetup } from "../components/ClientSetup"
 import { IssuedKeyPanel } from "../components/IssuedKeyPanel"
+import { QuotaBar } from "../components/QuotaBar"
+import { RecentFeed } from "../components/RecentFeed"
+import { Sparkline } from "../components/Sparkline"
+import { TopModels } from "../components/TopModels"
 import { useToast } from "../components/Toast"
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
@@ -32,18 +36,27 @@ function Card({ title, children, action }: { title?: string; children: React.Rea
 export function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [keys, setKeys] = useState<Key[]>([])
+  const [days, setDays] = useState<UsageDay[]>([])
+  const [models, setModels] = useState<ModelUsage[]>([])
+  const [recent, setRecent] = useState<RecentEvent[]>([])
   const [issued, setIssued] = useState<IssuedKey | null>(null)
   const [search, setSearch] = useState("")
   const [hideInactive, setHideInactive] = useState(true)
   const toast = useToast()
 
   async function reload() {
-    const [s, k] = await Promise.all([
+    const [s, k, d, m, r] = await Promise.all([
       api.get<Stats>("/admin/api/stats"),
       api.get<Key[]>("/admin/api/keys"),
+      api.get<UsageDay[]>("/admin/api/usage?days=14"),
+      api.get<ModelUsage[]>("/admin/api/usage/by-model?days=30"),
+      api.get<RecentEvent[]>("/admin/api/usage/recent?limit=20"),
     ])
     setStats(s)
     setKeys(k ?? [])
+    setDays(d ?? [])
+    setModels(m ?? [])
+    setRecent(r ?? [])
   }
   useEffect(() => { reload().catch(console.error) }, [])
 
@@ -68,6 +81,23 @@ export function Dashboard() {
           <StatCard label="cost today" value={formatDollar(stats.today_cost_usd)} />
         </div>
       )}
+
+      {days.length > 0 && (
+        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <Sparkline data={days} field="tokens" label="tokens" />
+          <Sparkline data={days} field="cost_usd" label="cost (USD)" />
+          <Sparkline data={days} field="requests" label="requests" />
+        </div>
+      )}
+
+      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card title="모델별 사용량 (30일)">
+          <TopModels rows={models.slice(0, 8)} />
+        </Card>
+        <Card title="최근 활동">
+          <RecentFeed events={recent} />
+        </Card>
+      </div>
 
       {issued && <IssuedKeyPanel apiKey={issued.key} onClose={() => setIssued(null)} />}
 
@@ -106,8 +136,22 @@ export function Dashboard() {
                 <tr key={k.id} className="border-b border-[var(--color-border)] hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
                   <Td><Link to={`/keys/${k.id}`} className="text-[var(--color-accent)] underline-offset-2 hover:underline"><code>{k.prefix}…</code></Link></Td>
                   <Td title={k.owner} className="max-w-[220px] truncate">{k.owner}</Td>
-                  <Td align="right">{formatInt(k.total_tokens)}</Td>
-                  <Td align="right">{formatDollar(k.total_cost_usd)}</Td>
+                  <Td align="right">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span>{formatInt(k.total_tokens)}</span>
+                      {k.token_quota != null && (
+                        <QuotaBar kind="tokens" used={k.total_tokens} limit={k.token_quota} />
+                      )}
+                    </div>
+                  </Td>
+                  <Td align="right">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span>{formatDollar(k.total_cost_usd)}</span>
+                      {k.dollar_quota != null && (
+                        <QuotaBar kind="cost" used={k.total_cost_usd} limit={k.dollar_quota} />
+                      )}
+                    </div>
+                  </Td>
                   <Td className="text-[var(--color-muted)]">{formatTime(k.expires_at)}</Td>
                   <Td align="right">{k.rpm_limit ?? "—"}</Td>
                   <Td className="text-[var(--color-muted)]" title={k.last_used_at ?? ""}>{relativeTime(k.last_used_at)}</Td>
