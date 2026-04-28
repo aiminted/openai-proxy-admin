@@ -4,34 +4,11 @@ import { api, IssuedKey, IssueParams, Key, ModelUsage, RecentEvent, Stats, Usage
 import { formatDollar, formatInt, formatTime, relativeTime } from "../lib/format"
 import { ClientSetup } from "../components/ClientSetup"
 import { IssuedKeyPanel } from "../components/IssuedKeyPanel"
+import { MetricCard } from "../components/MetricCard"
 import { QuotaBar } from "../components/QuotaBar"
 import { RecentFeed } from "../components/RecentFeed"
-import { Sparkline } from "../components/Sparkline"
 import { TopModels } from "../components/TopModels"
 import { useToast } from "../components/Toast"
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3">
-      <span className="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">{label}</span>
-      <span className="text-2xl font-semibold tabular-nums">{value}</span>
-    </div>
-  )
-}
-
-function Card({ title, children, action }: { title?: string; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <section className="mb-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
-      {(title || action) && (
-        <div className="mb-3 flex items-baseline justify-between gap-3">
-          {title && <h2 className="text-sm font-semibold">{title}</h2>}
-          {action}
-        </div>
-      )}
-      {children}
-    </section>
-  )
-}
 
 export function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
@@ -42,6 +19,7 @@ export function Dashboard() {
   const [issued, setIssued] = useState<IssuedKey | null>(null)
   const [search, setSearch] = useState("")
   const [hideInactive, setHideInactive] = useState(true)
+  const [issueOpen, setIssueOpen] = useState(false)
   const toast = useToast()
 
   async function reload() {
@@ -69,44 +47,70 @@ export function Dashboard() {
     })
   }, [keys, search, hideInactive])
 
+  const totals = useMemo(() => {
+    return days.reduce(
+      (acc, d) => ({
+        tokens: acc.tokens + (d.tokens || 0),
+        cost: acc.cost + (d.cost_usd || 0),
+        requests: acc.requests + (d.requests || 0),
+      }),
+      { tokens: 0, cost: 0, requests: 0 },
+    )
+  }, [days])
+
+  const inactiveCount = keys.length - keys.filter((k) => k.active).length
+
   return (
     <>
       <ClientSetup />
 
-      {stats && (
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="total keys" value={formatInt(stats.total_keys)} />
-          <StatCard label="active" value={formatInt(stats.active_keys)} />
-          <StatCard label="tokens today" value={formatInt(stats.today_tokens)} />
-          <StatCard label="cost today" value={formatDollar(stats.today_cost_usd)} />
-        </div>
-      )}
-
-      {days.length > 0 && (
-        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <Sparkline data={days} field="tokens" label="tokens" />
-          <Sparkline data={days} field="cost_usd" label="cost (USD)" />
-          <Sparkline data={days} field="requests" label="requests" />
-        </div>
-      )}
-
-      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card title="모델별 사용량 (30일)">
-          <TopModels rows={models.slice(0, 8)} />
-        </Card>
-        <Card title="최근 활동">
-          <RecentFeed events={recent} />
-        </Card>
-      </div>
-
       {issued && <IssuedKeyPanel apiKey={issued.key} onClose={() => setIssued(null)} />}
 
-      <IssueForm onIssued={(k) => { setIssued(k); reload(); toast(`키 발급됨 (${k.owner})`, "ok") }} />
+      <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          label="cost (14d)"
+          value={formatDollar(totals.cost)}
+          hint={stats ? `today ${formatDollar(stats.today_cost_usd)}` : undefined}
+          trend={{ data: days, field: "cost_usd" }}
+        />
+        <MetricCard
+          label="tokens (14d)"
+          value={formatInt(totals.tokens)}
+          hint={stats ? `today ${formatInt(stats.today_tokens)}` : undefined}
+          trend={{ data: days, field: "tokens" }}
+        />
+        <MetricCard
+          label="requests (14d)"
+          value={formatInt(totals.requests)}
+          hint={days.length ? `today ${formatInt(days[days.length - 1]?.requests ?? 0)}` : undefined}
+          trend={{ data: days, field: "requests" }}
+        />
+        <MetricCard
+          label="keys"
+          value={
+            stats
+              ? <span>{formatInt(stats.active_keys)}<span className="text-[var(--color-muted)] text-[16px]"> / {formatInt(stats.total_keys)}</span></span>
+              : "—"
+          }
+          hint={inactiveCount > 0 ? `${inactiveCount}개 비활성` : "전부 활성"}
+        />
+      </section>
 
-      <Card
-        title={`키 목록 (${keys.length})`}
-        action={
-          <div className="flex items-center gap-3">
+      <section className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card title="모델별 사용량" subtitle="최근 30일">
+          <TopModels rows={models.slice(0, 8)} />
+        </Card>
+        <Card title="최근 활동" subtitle="전 키 통합">
+          <RecentFeed events={recent} />
+        </Card>
+      </section>
+
+      <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">
+            API keys <span className="text-[var(--color-muted)]">({keys.length})</span>
+          </h2>
+          <div className="flex flex-wrap items-center gap-3">
             <input
               type="search"
               value={search}
@@ -118,9 +122,29 @@ export function Dashboard() {
               <input type="checkbox" checked={hideInactive} onChange={(e) => setHideInactive(e.target.checked)} />
               <span>비활성 숨김</span>
             </label>
+            <button
+              type="button"
+              onClick={() => setIssueOpen((v) => !v)}
+              className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              {issueOpen ? "− 닫기" : "+ 새 키 발급"}
+            </button>
           </div>
-        }
-      >
+        </div>
+
+        {issueOpen && (
+          <div className="mb-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4">
+            <IssueForm
+              onIssued={(k) => {
+                setIssued(k)
+                setIssueOpen(false)
+                reload()
+                toast(`키 발급됨 (${k.owner})`, "ok")
+              }}
+            />
+          </div>
+        )}
+
         <div className="-mx-5 overflow-x-auto px-5">
           <table className="w-full min-w-[760px] text-[13px]">
             <thead>
@@ -134,7 +158,11 @@ export function Dashboard() {
             <tbody>
               {filtered.map((k) => (
                 <tr key={k.id} className="border-b border-[var(--color-border)] hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                  <Td><Link to={`/keys/${k.id}`} className="text-[var(--color-accent)] underline-offset-2 hover:underline"><code>{k.prefix}…</code></Link></Td>
+                  <Td>
+                    <Link to={`/keys/${k.id}`} className="text-[var(--color-accent)] underline-offset-2 hover:underline">
+                      <code>{k.prefix}…</code>
+                    </Link>
+                  </Td>
                   <Td title={k.owner} className="max-w-[220px] truncate">{k.owner}</Td>
                   <Td align="right">
                     <div className="flex flex-col items-end gap-0.5">
@@ -155,23 +183,38 @@ export function Dashboard() {
                   <Td className="text-[var(--color-muted)]">{formatTime(k.expires_at)}</Td>
                   <Td align="right">{k.rpm_limit ?? "—"}</Td>
                   <Td className="text-[var(--color-muted)]" title={k.last_used_at ?? ""}>{relativeTime(k.last_used_at)}</Td>
-                  <Td>{k.active
-                    ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">on</span>
-                    : <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">off</span>}
+                  <Td>
+                    {k.active
+                      ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">on</span>
+                      : <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">off</span>}
                   </Td>
-                  <Td align="right">
-                    <RowActions k={k} reload={reload} />
-                  </Td>
+                  <Td align="right"><RowActions k={k} reload={reload} /></Td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="py-6 text-center text-[var(--color-muted)]">{keys.length === 0 ? "아직 발급된 키가 없습니다." : "검색 결과 없음."}</td></tr>
+                <tr>
+                  <td colSpan={9} className="py-6 text-center text-[var(--color-muted)]">
+                    {keys.length === 0 ? "아직 발급된 키가 없습니다." : "검색 결과 없음."}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
-      </Card>
+      </section>
     </>
+  )
+}
+
+function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {subtitle && <span className="text-[11px] text-[var(--color-muted)]">{subtitle}</span>}
+      </div>
+      {children}
+    </section>
   )
 }
 
@@ -229,7 +272,7 @@ function IssueForm({ onIssued }: { onIssued: (k: IssuedKey) => void }) {
     try {
       const params: IssueParams = {
         owner: owner.trim(),
-        note: note,
+        note,
         expires_at: expiresAt ? new Date(expiresAt + "T00:00:00Z").toISOString() : null,
         rpm_limit: rpm ? parseInt(rpm, 10) : null,
         token_quota: tokens ? parseInt(tokens, 10) : null,
@@ -245,56 +288,54 @@ function IssueForm({ onIssued }: { onIssued: (k: IssuedKey) => void }) {
     }
   }
 
-  const inputCls = "rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
+  const inputCls = "rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
   const labelCls = "flex flex-col gap-1 text-xs text-[var(--color-muted)]"
 
   return (
-    <Card title="새 API 키 발급">
-      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className={`${labelCls} sm:col-span-2`}>
-          <span>owner <span className="text-red-500">*</span></span>
-          <input type="text" required className={inputCls} value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="user@example.com 또는 이름" />
-        </label>
-        <label className={`${labelCls} sm:col-span-2`}>
-          <span>note</span>
-          <input type="text" className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="자유 메모" />
-        </label>
-        <label className={labelCls}>
-          <span>expires</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="date" className={`${inputCls} flex-1 min-w-[140px]`} value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
-            {[
-              { label: "+7d", days: 7 },
-              { label: "+30d", days: 30 },
-              { label: "+90d", days: 90 },
-              { label: "없음", days: null },
-            ].map((p) => (
-              <button key={p.label} type="button" onClick={() => preset(p.days)}
-                className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]">
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </label>
-        <label className={labelCls}>
-          <span>RPM limit</span>
-          <input type="number" min={1} className={inputCls} value={rpm} onChange={(e) => setRpm(e.target.value)} placeholder="분당 요청수" />
-        </label>
-        <label className={labelCls}>
-          <span>token quota</span>
-          <input type="number" min={1} className={inputCls} value={tokens} onChange={(e) => setTokens(e.target.value)} placeholder="누적 토큰 한도" />
-        </label>
-        <label className={labelCls}>
-          <span>dollar quota</span>
-          <input type="number" min={0} step={0.01} className={inputCls} value={dollars} onChange={(e) => setDollars(e.target.value)} placeholder="누적 달러 한도" />
-        </label>
-        <div className="sm:col-span-2 flex items-center gap-3">
-          <button type="submit" disabled={submitting}
-            className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-            {submitting ? "..." : "발급"}
-          </button>
+    <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <label className={`${labelCls} sm:col-span-2`}>
+        <span>owner <span className="text-red-500">*</span></span>
+        <input type="text" required className={inputCls} value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="user@example.com 또는 이름" autoFocus />
+      </label>
+      <label className={`${labelCls} sm:col-span-2`}>
+        <span>note</span>
+        <input type="text" className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="자유 메모" />
+      </label>
+      <label className={labelCls}>
+        <span>expires</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="date" className={`${inputCls} flex-1 min-w-[140px]`} value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+          {[
+            { label: "+7d", days: 7 },
+            { label: "+30d", days: 30 },
+            { label: "+90d", days: 90 },
+            { label: "없음", days: null as number | null },
+          ].map((p) => (
+            <button key={p.label} type="button" onClick={() => preset(p.days)}
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1 text-xs hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]">
+              {p.label}
+            </button>
+          ))}
         </div>
-      </form>
-    </Card>
+      </label>
+      <label className={labelCls}>
+        <span>RPM limit</span>
+        <input type="number" min={1} className={inputCls} value={rpm} onChange={(e) => setRpm(e.target.value)} placeholder="분당 요청수" />
+      </label>
+      <label className={labelCls}>
+        <span>token quota</span>
+        <input type="number" min={1} className={inputCls} value={tokens} onChange={(e) => setTokens(e.target.value)} placeholder="누적 토큰 한도" />
+      </label>
+      <label className={labelCls}>
+        <span>dollar quota</span>
+        <input type="number" min={0} step={0.01} className={inputCls} value={dollars} onChange={(e) => setDollars(e.target.value)} placeholder="누적 달러 한도" />
+      </label>
+      <div className="sm:col-span-2">
+        <button type="submit" disabled={submitting}
+          className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          {submitting ? "..." : "발급"}
+        </button>
+      </div>
+    </form>
   )
 }
