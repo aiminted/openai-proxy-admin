@@ -4,6 +4,7 @@ import { api, IssuedKey, IssueParams, Key, ModelUsage, RecentEvent, Stats, Usage
 import { formatDollar, formatInt, formatTime, relativeTime } from "../lib/format"
 import { ClientSetup } from "../components/ClientSetup"
 import { IssuedKeyPanel } from "../components/IssuedKeyPanel"
+import { UpstreamKeyCard } from "../components/UpstreamKeyCard"
 import { MetricCard } from "../components/MetricCard"
 import { QuotaBar } from "../components/QuotaBar"
 import { RecentFeed } from "../components/RecentFeed"
@@ -63,6 +64,7 @@ export function Dashboard() {
   return (
     <>
       <ClientSetup />
+      <UpstreamKeyCard />
 
       {issued && <IssuedKeyPanel apiKey={issued.key} onClose={() => setIssued(null)} />}
 

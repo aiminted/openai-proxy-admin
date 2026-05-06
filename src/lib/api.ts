@@ -119,6 +119,15 @@ export type ModelUsage = {
   requests: number
 }
 
+export type UpstreamKeyMeta = {
+  id: number
+  prefix: string
+  note: string
+  active: boolean
+  created_at: string
+  retired_at: string | null
+}
+
 export type RecentEvent = {
   created_at: string
   key_id: string
